@@ -1210,8 +1210,14 @@ function setMode(m) {
 }
 
 function usStartScan() {
-  const target = document.getElementById('us-target').value.trim();
+  let target = document.getElementById('us-target').value.trim();
   if (!target) return;
+
+  // Strip leading '@' for username mode
+  if (_usMode === 'username' && target.startsWith('@')) {
+    target = target.slice(1);
+    document.getElementById('us-target').value = target;
+  }
 
   usStopScan();
   _usRows   = [];
