@@ -696,19 +696,26 @@ def us_download(fmt):
 def init_telegram_bot():
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     if not bot_token:
+        print("[OSINT Suite] TELEGRAM_BOT_TOKEN not configured. Skipping embedded Telegram bot.", flush=True)
         return
     # In debug/reload mode, only start in the reloaded worker process
     if os.environ.get("WERKZEUG_RUN_MAIN") == "false":
         return
     try:
+        print("[OSINT Suite] Found TELEGRAM_BOT_TOKEN. Launching embedded bot...", flush=True)
         from telegram_bot import start_embedded_bot
         start_embedded_bot(bot_token)
     except ImportError as e:
+        print(f"[OSINT Suite] Telegram bot dependencies not installed: {e}", flush=True)
         app.logger.warning("Telegram bot dependencies not installed (%s). Run pip install -r requirements.txt", e)
     except Exception as e:
+        print(f"[OSINT Suite] Failed to start embedded Telegram bot: {e}", flush=True)
         app.logger.warning("Failed to start embedded Telegram bot: %s", e)
 
 
+# Start embedded bot on app load so it runs under both `python app.py` and WSGI servers like Gunicorn (Render/production)
+init_telegram_bot()
+
+
 if __name__ == "__main__":
-    init_telegram_bot()
     app.run(host="0.0.0.0", port=5000, threaded=True)

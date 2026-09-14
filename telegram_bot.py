@@ -446,15 +446,17 @@ def start_embedded_bot(bot_token: str, webapp_url: Optional[str] = None):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            logger.info("Starting Telegram bot polling thread...")
+            print("[TelegramBot] Initializing Telegram bot...", flush=True)
             app = create_bot_application(bot_token)
             # Run polling inside thread's event loop
             loop.run_until_complete(app.initialize())
             loop.run_until_complete(post_init_setup(app))
             loop.run_until_complete(app.start())
             loop.run_until_complete(app.updater.start_polling(allowed_updates=Update.ALL_TYPES))
+            print("[TelegramBot] Polling started successfully.", flush=True)
             loop.run_forever()
         except Exception as e:
+            print(f"[TelegramBot] Runner error: {e}", flush=True)
             logger.error("Telegram bot runner stopped with error: %s", e)
         finally:
             try:
@@ -466,4 +468,4 @@ def start_embedded_bot(bot_token: str, webapp_url: Optional[str] = None):
 
     _bot_thread = threading.Thread(target=_runner, name="TelegramBotWorker", daemon=True)
     _bot_thread.start()
-    logger.info("Embedded Telegram bot worker launched.")
+    print("[TelegramBot] Embedded worker thread launched.", flush=True)
