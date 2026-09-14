@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import tempfile
+import sys
 from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
@@ -271,11 +272,18 @@ def check_email(email: str, check_dns: bool = True):
         return None, f"Invalid email: {e}"
 
 
-def run_holehe(email: str, only_used: bool = True):
-    """Run the holehe CLI and parse its output into structured rows."""
-    cmd = ["holehe", email, "-C"]
+def _get_holehe_cmd(email: str, only_used: bool = True) -> list[str]:
+    """Build Holehe command using sys.executable to avoid Windows Application Control blocking holehe.exe."""
+    py_code = "import sys; from holehe.core import main; sys.argv = ['holehe'] + sys.argv[1:]; main()"
+    cmd = [sys.executable, "-c", py_code, email, "-C"]
     if only_used:
         cmd.append("--only-used")
+    return cmd
+
+
+def run_holehe(email: str, only_used: bool = True):
+    """Run the holehe CLI and parse its output into structured rows."""
+    cmd = _get_holehe_cmd(email, only_used=only_used)
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -421,9 +429,7 @@ def holehe_scan():
     def generate():
         yield "data: " + json.dumps({"type": "start", "email": normalized}) + "\n\n"
 
-        cmd = ["holehe", normalized, "-C"]
-        if only_used:
-            cmd.append("--only-used")
+        cmd = _get_holehe_cmd(normalized, only_used=only_used)
 
         tmpdir_obj = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         tmpdir = tmpdir_obj.name
@@ -687,5 +693,22 @@ def us_download(fmt):
     )
 
 
+def init_telegram_bot():
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not bot_token:
+        return
+    # In debug/reload mode, only start in the reloaded worker process
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "false":
+        return
+    try:
+        from telegram_bot import start_embedded_bot
+        start_embedded_bot(bot_token)
+    except ImportError as e:
+        app.logger.warning("Telegram bot dependencies not installed (%s). Run pip install -r requirements.txt", e)
+    except Exception as e:
+        app.logger.warning("Failed to start embedded Telegram bot: %s", e)
+
+
 if __name__ == "__main__":
+    init_telegram_bot()
     app.run(host="0.0.0.0", port=5000, threaded=True)

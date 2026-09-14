@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OSINT Suite</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -647,21 +648,72 @@
     }
 
     /* ── Responsive ── */
+    .sidebar-toggle-btn {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-hi);
+      border-radius: var(--radius);
+      width: 34px;
+      height: 34px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 8px;
+    }
+    .sidebar-toggle-btn:hover {
+      background: var(--border);
+    }
+    .sidebar-backdrop {
+      display: none;
+    }
+
     @media (max-width: 768px) {
-      .sidebar { display: none; }
-      .main-content { padding: 18px 16px; }
-      .app-header { padding: 0 16px; }
+      .sidebar {
+        position: fixed;
+        top: 0;
+        left: -280px;
+        width: 280px;
+        height: 100vh;
+        z-index: 1000;
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 2px 0 20px rgba(0,0,0,0.6);
+        background: var(--bg-panel);
+      }
+      .sidebar.open {
+        transform: translateX(280px);
+      }
+      .sidebar-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(2px);
+        z-index: 999;
+      }
+      .sidebar-backdrop.active {
+        display: block;
+      }
+      .sidebar-toggle-btn {
+        display: inline-flex;
+      }
+      .main-content { padding: 18px 14px; }
+      .app-header { padding: 0 14px; }
     }
   </style>
 </head>
 <body>
 
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleMobileSidebar(false)"></div>
+
 <div class="page-layout">
 
   <!-- ── Sidebar ── -->
-  <aside class="sidebar">
-    <div class="sidebar-header">
+  <aside class="sidebar" id="appSidebar">
+    <div class="sidebar-header" style="display:flex;align-items:center;justify-content:space-between">
       <div class="sidebar-title">Saved Searches</div>
+      <button type="button" class="sidebar-toggle-btn" onclick="toggleMobileSidebar(false)" style="margin-right:0;width:28px;height:28px;font-size:14px" title="Close">✕</button>
     </div>
     <div class="saved-list">
       {% if current_user.is_authenticated %}
@@ -669,7 +721,7 @@
           {% for search in saved_searches %}
             {% set label = 'Holehe' if search.scan_type == 'holehe' else 'User Scanner' %}
             {% set mode_str = ' · ' ~ search.mode if search.mode else '' %}
-            <div class="saved-item" onclick="runSavedSearch('{{ search.target|e }}','{{ search.scan_type|e }}','{{ search.mode|default('')|e }}')">
+            <div class="saved-item" onclick="runSavedSearch('{{ search.target|e }}','{{ search.scan_type|e }}','{{ search.mode|default('')|e }}');toggleMobileSidebar(false)">
               <div class="saved-item-body">
                 <span class="saved-target">{{ search.target }}</span>
                 <span class="saved-type-badge badge-{{ search.scan_type }}">{{ label }}{{ mode_str }}</span>
@@ -692,6 +744,7 @@
     <!-- Header -->
     <header class="app-header">
       <div class="header-brand">
+        <button type="button" class="sidebar-toggle-btn" id="sidebarToggleBtn" onclick="toggleMobileSidebar(true)" title="Open Saved Searches">☰</button>
         <svg class="header-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"/>
           <circle cx="12" cy="12" r="6"/>
@@ -1007,6 +1060,16 @@ document.querySelectorAll('.modal-backdrop').forEach(el => {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop.open').forEach(el => el.classList.remove('open'));
 });
+
+// ── Mobile sidebar helper ──────────────────────────────────────────────────
+function toggleMobileSidebar(force) {
+  const sidebar = document.getElementById('appSidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (!sidebar) return;
+  const shouldOpen = typeof force === 'boolean' ? force : !sidebar.classList.contains('open');
+  sidebar.classList.toggle('open', shouldOpen);
+  if (backdrop) backdrop.classList.toggle('active', shouldOpen);
+}
 </script>
 <script>
 // ── Holehe ───────────────────────────────────────────────────────────────────
@@ -1071,7 +1134,10 @@ function hStopScan(finished) {
   document.getElementById('h-scan-btn').disabled           = false;
   document.getElementById('h-stop-btn').style.display      = 'none';
   document.getElementById('h-scanning-card').style.display = 'none';
-  if (finished && _hRows.length > 0) hRenderTable();
+  if (finished && _hRows.length > 0) {
+    hRenderTable();
+    triggerHaptic('success');
+  }
   else setTimeout(() => document.getElementById('h-email').focus(), 0);
 }
 
@@ -1270,6 +1336,7 @@ function usStopScan(finished) {
   if (finished && _usRows.length > 0) {
     usRenderTable();
     document.getElementById('us-results-area').style.display = 'block';
+    triggerHaptic('success');
   } else {
     setTimeout(() => document.getElementById('us-target').focus(), 0);
   }
@@ -1429,6 +1496,23 @@ function hSubmitDownload() {
 document.getElementById('us-target') && document.getElementById('us-target').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') usStartScan();
 });
+
+// ── Telegram Mini App Helpers ────────────────────────────────────────────────
+function triggerHaptic(type = 'success') {
+  try {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred(type);
+    }
+  } catch (e) {}
+}
+
+if (window.Telegram && window.Telegram.WebApp) {
+  try {
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+  } catch (e) {}
+}
 </script>
 </body>
 </html>

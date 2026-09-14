@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Register — OSINT Suite</title>
+  <title>Create Account — OSINT Suite</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -277,5 +278,13 @@
     </div>
   </div>
 
+  <script>
+    if (window.Telegram && window.Telegram.WebApp) {
+      try {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+      } catch (e) {}
+    }
+  </script>
 </body>
 </html>
